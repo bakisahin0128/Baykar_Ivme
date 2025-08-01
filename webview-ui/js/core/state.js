@@ -1,10 +1,12 @@
 /* ==========================================================================
-   GLOBAL DURUM (STATE) YÖNETİM MODÜLÜ
+   GLOBAL DURUM (STATE) YÖNETİM MODÜLÜ (GÜNCELLENMİŞ)
    Uygulama genelindeki tüm değişkenleri ve durumları yönetir.
+   YENİ GÜNCELLEME: `resetChatState` fonksiyonu, tüm ilgili durumları
+                    eksiksiz olarak sıfırlayacak şekilde güçlendirildi.
    ========================================================================== */
 
 import * as DOM from '../utils/dom.js';
-import { updateInputAndButtonState } from '../components/InputArea.js';
+import { updateInputAndButtonState, setPlaceholder } from '../components/InputArea.js';
 
 // --- Arayüz Durumları ---
 let isAiResponding = false;
@@ -31,11 +33,13 @@ export const getState = () => ({
 
 export function setAiResponding(value) {
     isAiResponding = value;
+    setPlaceholder(); // Yanıt durumuna göre placeholder'ı güncelle
     updateInputAndButtonState();
 }
 
 export function setDiffViewActive(value) {
     isDiffViewActive = value;
+    setPlaceholder(); // Diff durumuna göre placeholder'ı güncelle
     updateInputAndButtonState();
 }
 
@@ -61,9 +65,14 @@ export function resetFilesSize() {
     filesSize = 0;
 }
 
+// GÜNCELLEME: Bu fonksiyon artık daha kapsamlı.
 export function resetChatState() {
     conversationSize = 0;
     filesSize = 0;
     isAiResponding = false;
     isDiffViewActive = false;
+    // Diğer UI durumlarını da sıfırla
+    DOM.fileContextArea.innerHTML = ''; // Dosya etiketlerini temizle
+    updateInputAndButtonState();
+    setPlaceholder();
 }

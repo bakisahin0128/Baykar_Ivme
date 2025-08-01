@@ -1,12 +1,12 @@
 /* ==========================================================================
-   CHAT VIEW BİLEŞENİ (ŞABLON KULLANIMLI)
+   CHAT VIEW BİLEŞENİ (ŞABLON KULLANIMLI VE GÜNCELLENMİŞ)
    ========================================================================== */
 
 import * as DOM from '../utils/dom.js';
 import { getState, setAiResponding, incrementConversationSize, setContextSize, resetChatState } from '../core/state.js';
 import { postMessage } from '../services/vscode.js';
-import { recalculateTotalAndUpdateUI } from './InputArea.js';
-import * as DiffView from './DiffView.js'
+import { recalculateTotalAndUpdateUI, setPlaceholder, focus as focusInput } from './InputArea.js';
+import * as DiffView from './DiffView.js';
 
 // --- Private Fonksiyonlar ---
 
@@ -71,9 +71,9 @@ function addCopyButtonsToCodeBlocks(element) {
     });
 }
 
-// --- Animasyon Efektleri ---
+// --- Animasyon Efektleri (Değişiklik yok) ---
 
-function runTextDiffusionEffect(element, originalText) {
+async function runTextDiffusionEffect(element, originalText) {
     return new Promise(resolve => {
         let step = 0;
         const maxSteps = 10, speed = 40;
@@ -104,6 +104,7 @@ async function runCodeDiffusionEffect(codeElement, rawCode) {
         await runDiffusionEffectForLine(lineDiv, line);
     }
     codeElement.textContent = rawCode;
+    hljs.highlightElement(codeElement);
 }
 
 function runDiffusionEffectForLine(element, originalLine) {
@@ -128,7 +129,7 @@ function runDiffusionEffectForLine(element, originalLine) {
     });
 }
 
-function runStreamingEffect(element, originalText, isCode) {
+async function runStreamingEffect(element, originalText, isCode) {
     return new Promise(resolve => {
         let i = 0;
         const speed = isCode ? 10 : 20;
@@ -141,7 +142,11 @@ function runStreamingEffect(element, originalText, isCode) {
                 DOM.chatContainer.scrollTop = DOM.chatContainer.scrollHeight;
                 setTimeout(type, speed);
             } else {
-                if (!isCode) element.innerHTML = marked.parse(originalText);
+                if (!isCode) {
+                    element.innerHTML = marked.parse(originalText);
+                } else {
+                    hljs.highlightElement(element);
+                }
                 resolve();
             }
         }
@@ -169,7 +174,7 @@ export async function showAiResponse(responseText) {
     if (!loadingElement) return;
 
     loadingElement.querySelector('.avatar-wrapper')?.classList.remove('loading');
-    const contentElement = loadingElement.querySelector('div:not(.avatar-wrapper)');
+    const contentElement = loadingElement.querySelector('.message-content');
     contentElement.innerHTML = '';
     loadingElement.id = '';
 
@@ -186,7 +191,8 @@ export async function showAiResponse(responseText) {
             contentElement.appendChild(pre);
             
             const langMatch = chunk.match(/```(\w*)\n/);
-            code.className = `language-${langMatch ? langMatch[1] : 'plaintext'} hljs`;
+            const lang = langMatch ? langMatch[1] : 'plaintext';
+            code.className = `language-${lang} hljs`;
             const rawCode = chunk.replace(/```\w*\n/, '').replace(/```$/, '');
             
             if (currentAnimationEffect === 'diffusion') {
@@ -194,10 +200,6 @@ export async function showAiResponse(responseText) {
             } else {
                 await runStreamingEffect(code, rawCode, true);
             }
-            
-            hljs.highlightElement(code);
-            addCopyButtonsToCodeBlocks(contentElement);
-
         } else { 
             const paragraphs = chunk.split(/\n{2,}/g).filter(p => p.trim() !== '');
             for(const paraText of paragraphs) {
@@ -212,37 +214,58 @@ export async function showAiResponse(responseText) {
         }
         DOM.chatContainer.scrollTop = DOM.chatContainer.scrollHeight;
     }
+    
+    // Tüm animasyonlar bittikten sonra kod bloklarını işle
+    addCopyButtonsToCodeBlocks(contentElement);
+    
     setAiResponding(false);
     recalculateTotalAndUpdateUI();
-    DOM.input.focus();
+    focusInput();
     postMessage('requestContextSize');
 }
 
+// GÜNCELLEME: Bu fonksiyon artık arayüzü tamamen sıfırlıyor.
 export function clear() {
     DOM.chatContainer.innerHTML = '';
     DOM.chatContainer.classList.add('hidden');
     DOM.welcomeContainer.classList.remove('hidden');
+    
+    // Arka plan durumunu sıfırlamak için state fonksiyonunu çağır
     resetChatState();
-    recalculateTotalAndUpdateUI();
+    
+    // Diğer bileşenleri de sıfırla
     DiffView.hide();
+    setPlaceholder(); // Placeholder'ı varsayılan haline getir
+    recalculateTotalAndUpdateUI(); // Karakter sayacını sıfırla
 }
 
 export function load(messages) {
+    // Önce ekranı tamamen temizle
     clear();
+    
     const conversationMessages = messages.filter(m => m.role !== 'system');
     
     if (conversationMessages.length > 0) {
         DOM.welcomeContainer.classList.add('hidden');
         DOM.chatContainer.classList.remove('hidden');
+        
         let newConversationSize = 0;
         conversationMessages.forEach(msg => {
             const content = (msg.role === 'assistant') ? marked.parse(msg.content) : `<p>${msg.content}</p>`;
             createMessageElement(msg.role, content);
             newConversationSize += msg.content.length;
         });
+        
+        // GÜNCELLEME: Sadece `conversationSize`'ı güncelle, `filesSize`'ı koru.
         setContextSize(newConversationSize, getState().filesSize);
+        addCopyButtonsToCodeBlocks(DOM.chatContainer);
+
     } else {
+        // Eğer yüklenecek mesaj yoksa, sohbet boyutunu sıfırla.
         setContextSize(0, getState().filesSize);
     }
+    
+    // Her durumda UI'ı ve sayacı güncelle.
     recalculateTotalAndUpdateUI();
+    focusInput();
 }

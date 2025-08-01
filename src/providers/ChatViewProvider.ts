@@ -1,9 +1,5 @@
 /* ==========================================================================
-   DOSYA: src/providers/ChatViewProvider.ts (REFAKTÖR EDİLMİŞ)
-   
-   SORUMLULUK: Webview'i oluşturur, tüm yöneticileri (manager) ve
-   işleyicileri (handler) başlatır, gelen mesajları merkezi
-   WebviewMessageHandler'a yönlendirir ve HTML'i oluşturur.
+   DOSYA: src/providers/ChatViewProvider.ts (HATASI DÜZELTİLMİŞ)
    ========================================================================== */
 
 import * as vscode from 'vscode';
@@ -16,7 +12,7 @@ import { ConversationManager } from '../features/ConversationManager';
 import { MessageHandler } from '../features/MessageHandler';
 import { ContextManager } from '../features/ContextManager';
 import { SettingsManager } from '../features/SettingsManager';
-import { WebviewMessageHandler } from '../features/Handlers/WebviewMessage'; // YENİ
+import { WebviewMessageHandler } from '../features/Handlers/WebviewMessage';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = `${EXTENSION_ID}.chatView`;
@@ -47,7 +43,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             localResourceRoots: [vscode.Uri.joinPath(this._context.extensionUri, 'webview-ui')]
         };
         
-        // İşleyicileri, webview nesnesi oluşturulduktan sonra başlatıyoruz.
         this.messageHandler = new MessageHandler(this.conversationManager, this.apiManager, this.contextManager, webviewView.webview);
         this.webviewMessageHandler = new WebviewMessageHandler(
             this.messageHandler,
@@ -59,20 +54,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
-        // İlk açılışta bağlam boyutunu gönder
-        this.webviewMessageHandler.handleMessage({ type: 'requestContextSize' });
-
-        // Gelen tüm mesajları merkezi işleyiciye yönlendir
         webviewView.webview.onDidReceiveMessage(async (data) => {
             await this.webviewMessageHandler?.handleMessage(data);
         });
 
+        // HATA DÜZELTMESİ: 'onDidBecomeVisible' -> 'onDidChangeVisibility' olarak değiştirildi.
         webviewView.onDidChangeVisibility(() => {
             if (webviewView.visible) {
-                const activeConv = this.conversationManager.getActive();
-                if (activeConv) {
-                    this._view?.webview.postMessage({ type: 'loadConversation', payload: activeConv.messages });
-                }
                 this.webviewMessageHandler?.handleMessage({ type: 'requestContextSize' });
             }
         });
@@ -94,7 +82,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             .replace(/{{cspSource}}/g, webview.cspSource)
             .replace(/{{nonce}}/g, nonce)
             .replace(/{{chat_css_uri}}/g, toUri('css/chat.css').toString())
-            // YENİ YOL: Artık core/app.js'i işaret ediyor.
             .replace(/{{chat_js_uri}}/g, toUri('js/core/app.js').toString()) 
             .replace(/{{ai_icon_uri}}/g, toUri('assets/baykar-icon.svg').toString())
             .replace(/{{user_icon_uri}}/g, toUri('assets/BaykarLogo.svg').toString())

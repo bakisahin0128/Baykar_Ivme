@@ -1,9 +1,5 @@
 /* ==========================================================================
-   YENİ DOSYA: src/features/Handlers/WebviewMessageHandler.ts
-   
-   SORUMLULUK: ChatViewProvider'dan gelen tüm webview mesajlarını
-   (postMessage) merkezi olarak yönetir. Gelen mesajın türüne göre
-   ilgili yöneticiyi (Manager) veya işleyiciyi (Handler) çağırır.
+   DOSYA: src/features/Handlers/WebviewMessageHandler.ts (HATASI DÜZELTİLMİŞ)
    ========================================================================== */
 
 import * as vscode from 'vscode';
@@ -88,10 +84,7 @@ export class WebviewMessageHandler {
     }
 
     private handleNewChat() {
-        const activeConv = this.conversationManager.getActive();
-        if (activeConv && activeConv.messages.length <= 1 && this.contextManager.uploadedFileContexts.length === 0) return;
-        
-        this.contextManager.clearAll(this.webview);
+        this.contextManager.clearAll(this.webview, false);
         this.conversationManager.createNew();
         this.webview.postMessage({ type: 'clearChat' });
         this.sendContextSize();
@@ -103,6 +96,7 @@ export class WebviewMessageHandler {
     }
 
     private switchChat(conversationId: string) {
+        this.contextManager.clearAll(this.webview, false);
         const conversation = this.conversationManager.switchConversation(conversationId);
         if (conversation) {
             this.webview.postMessage({ type: 'loadConversation', payload: conversation.messages });
@@ -110,13 +104,18 @@ export class WebviewMessageHandler {
         this.sendContextSize();
     }
 
+    // HATA DÜZELTMESİ: `nextConversation`'ın null olma ihtimali kontrol ediliyor.
     private deleteChat(conversationId: string) {
         const nextConversation = this.conversationManager.deleteConversation(conversationId);
+        
         if (nextConversation) {
+            // Silme sonrası yüklenecek bir sonraki konuşma varsa, onu yükle.
             this.webview.postMessage({ type: 'loadConversation', payload: nextConversation.messages });
         } else {
-            this.webview.postMessage({ type: 'clearChat' });
+            // Yüklenecek başka konuşma kalmadıysa, temiz bir başlangıç yap.
+            this.handleNewChat();
         }
+       
         this.sendHistory();
         this.sendContextSize();
     }
