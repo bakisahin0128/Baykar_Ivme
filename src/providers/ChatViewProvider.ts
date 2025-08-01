@@ -87,6 +87,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             .replace(/{{user_icon_uri}}/g, toUri('assets/BaykarLogo.svg').toString())
             .replace(/{{logo_uri}}/g, toUri('assets/BaykarLogo.svg').toString())
             .replace(/{{send_icon_uri}}/g, toUri('assets/baykar-icon.svg').toString())
-            .replace(/{{attach_icon_uri}}/g, toUri('assets/attach.svg').toString());
+            .replace(/{{attach_icon_uri}}/g, toUri('assets/attach.svg').toString())
+            .replace(/{{settings_icon_uri}}/g, toUri('assets/settings-icon.svg').toString())
+            .replace(/{{feedback_icon_uri}}/g, toUri('assets/feedback-icon.svg').toString())
+            .replace(/{{history_icon_uri}}/g, toUri('assets/history-icon.svg').toString())
+            .replace(/{{new_chat_icon_uri}}/g, toUri('assets/new-chat-icon.svg').toString());
+    
+    
     }
 }

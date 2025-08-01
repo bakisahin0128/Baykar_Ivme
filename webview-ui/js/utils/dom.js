@@ -15,6 +15,7 @@ export const fileContextArea = document.getElementById('file-context-area');
 export const newChatButton = document.getElementById('new-chat-button');
 export const historyButton = document.getElementById('history-button');
 export const settingsButton = document.getElementById('settings-button');
+export const feedbackButton = document.getElementById('feedback-button'); // YENİ EKLENEN SATIR
 export const sendButton = document.getElementById('send-button');
 export const attachFileButton = document.getElementById('attach-file-button');
 export const effectToggleSwitch = document.getElementById('effect-toggle-switch'); 

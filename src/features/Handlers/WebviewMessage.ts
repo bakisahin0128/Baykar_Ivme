@@ -71,6 +71,11 @@ export class WebviewMessageHandler {
             case 'saveSettings': 
                 await this.settingsManager.saveSettings(data.payload); 
                 break;
+            
+            // YENİ EKLENEN CASE
+            case 'showFeedbackMessage':
+                vscode.window.showInformationMessage("Rocket Chat üzerinden Asil Can Yılmaz ile İletişime Geçin");
+                break;
         }
     }
 

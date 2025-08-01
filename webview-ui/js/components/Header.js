@@ -22,5 +22,10 @@ export function init() {
         VsCode.postMessage('newChat');
     });
     
+    // YENİ EKLENEN BLOK
+    DOM.feedbackButton.addEventListener('click', () => {
+        VsCode.postMessage('showFeedbackMessage');
+    });
+
     DOM.effectToggleSwitch.addEventListener('change', toggleAnimationEffect);
 }

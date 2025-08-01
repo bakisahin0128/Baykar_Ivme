@@ -127,3 +127,25 @@ input:checked + .slider:before {
 .slider.round:before {
     border-radius: 50%;
 }
+
+.icon-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px; /* Buton içi boşluk */
+    border-radius: 6px; /* Kenar yuvarlaklığı */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--vscode-icon-foreground);
+}
+
+.icon-button:hover {
+    background-color: var(--vscode-toolbar-hoverBackground); /* Hover rengi */
+}
+
+.icon-button img {
+    width: 18px;  /* İkon genişliği */
+    height: 18px; /* İkon yüksekliği */
+    filter: invert(1); /* Rengi tersine çevirir (Siyahsa beyaz, beyazsa siyah yapar) */
+}
