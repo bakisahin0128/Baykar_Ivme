@@ -169,6 +169,20 @@ export function addUserMessage(text) {
     showAiLoadingIndicator();
 }
 
+/**
+ * YENİ FONKSİYON: Arayüze, AI bekleme durumunu tetiklemeden sistemsel
+ * bir mesaj ekler (örneğin "Değişiklik onaylandı").
+ * @param {string} text Gösterilecek metin.
+ */
+export function addSystemMessage(text) {
+    const p = document.createElement('p');
+    p.innerHTML = `<i>${text}</i>`; // Metni italik yaparak sistemsel olduğunu belirtelim.
+    createMessageElement('assistant', p.outerHTML);
+    // Burada AI state'ini değiştirecek veya sayaçları güncelleyecek bir kod YOKTUR.
+    // Bu sadece görsel bir eklemedir.
+}
+
+
 export async function showAiResponse(responseText) {
     const loadingElement = document.getElementById('ai-loading-placeholder');
     if (!loadingElement) return;

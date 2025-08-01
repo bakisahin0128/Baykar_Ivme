@@ -7,7 +7,8 @@
 import * as DOM from '../utils/dom.js';
 import * as VsCode from '../services/vscode.js';
 import { setDiffViewActive } from '../core/state.js';
-import { addUserMessage } from './ChatView.js';
+// DEĞİŞİKLİK: 'addUserMessage' yerine 'addSystemMessage' import edildi.
+import { addSystemMessage } from './ChatView.js';
 
 let pendingDiffData = null;
 
@@ -72,7 +73,8 @@ export function hide() {
 
 export function handleSuccessfulChange() {
     hide();
-    addUserMessage("Değişiklik başarıyla uygulandı!");
+    // DEĞİŞİKLİK: Hatalı fonksiyon yerine yeni 'addSystemMessage' kullanılıyor.
+    addSystemMessage("Değişiklik başarıyla uygulandı!");
     DOM.approveChangeButton.disabled = false;
     DOM.rejectChangeButton.disabled = false;
     DOM.approveChangeButton.textContent = 'Değişikliği Onayla';
