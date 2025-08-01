@@ -11,7 +11,8 @@
     
     <title>İvme Chat</title>
 </head>
-<body>
+<body data-ai-icon-uri="{{ai_icon_uri}}" data-user-icon-uri="{{user_icon_uri}}">
+    
     <header class="chat-header">
         <div class="header-logo-title">
             <img src="{{logo_uri}}" alt="Logo" class="header-logo"/>
@@ -51,7 +52,7 @@
         </div>
     </div>
 
-    <div id="chat-container" class="hidden" data-ai-icon-uri="{{ai_icon_uri}}" data-user-icon-uri="{{user_icon_uri}}"></div>
+    <div id="chat-container" class="hidden"></div>
     
     <div id="diff-container" class="diff-container hidden">
         <div class="diff-header">
@@ -110,6 +111,26 @@
             </div>
         </div>
     </div>
+
+    <template id="message-template">
+        <div class="message">
+            <div class="avatar-wrapper">
+                <img class="avatar-icon" src="" alt="Avatar">
+            </div>
+            <div class="message-content">
+                </div>
+        </div>
+    </template>
+
+    <template id="history-card-template">
+        <div class="history-card">
+            <span class="history-title"></span>
+            <button class="delete-chat-button" title="Sohbeti Sil">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06z"/></svg>
+            </button>
+        </div>
+    </template>
+
 
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>

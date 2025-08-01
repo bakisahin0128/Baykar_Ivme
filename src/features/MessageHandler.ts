@@ -1,25 +1,61 @@
 /* ==========================================================================
-   DOSYA 2: src/features/MessageHandler.ts (NİHAİ SÜRÜM)
+   DOSYA: src/features/MessageHandler.ts (REFAKTÖR EDİLMİŞ)
    
-   SORUMLULUK: Webview'den gelen 'askAI' gibi ana komutları işler.
-   YENİ: API'den gelen detaylı hata mesajlarını doğrudan kullanıcıya gösterir.
+   SORUMLULUK: Webview'den gelen 'askAI' komutunu işler. Standart sohbeti
+   yönetir veya karmaşık etkileşimleri (dosya/seçim) InteractionHandler'a
+   delege eder.
    ========================================================================== */
 
 import * as vscode from 'vscode';
 import { ApiServiceManager } from '../services/ApiServiceManager';
 import { ConversationManager } from './ConversationManager';
-import { createModificationPrompt, createExplanationPrompt, createFileInteractionAnalysisPrompt, createSelectionInteractionAnalysisPrompt } from '../core/promptBuilder';
-import { cleanLLMCodeBlock, cleanLLMJsonBlock } from '../core/utils';
-import { ChatMessage, DiffData, ApproveChangeArgs } from '../types/index';
-import { EXTENSION_ID, SETTINGS_KEYS, UI_MESSAGES, API_SERVICES } from '../core/constants';
+import { InteractionHandler } from './Handlers/Interaction';
+import { ContextManager } from './ContextManager';
+import { ChatMessage, ApproveChangeArgs, DiffData } from '../types/index';
+import { EXTENSION_ID, SETTINGS_KEYS } from '../core/constants';
 
 export class MessageHandler {
-    constructor(
-        private readonly conversationManager: ConversationManager,
-        private readonly apiManager: ApiServiceManager
-    ) {}
+    private interactionHandler: InteractionHandler;
 
-    public async handleStandardChat(userMessage: string, webview: vscode.Webview) {
+    constructor(
+        private conversationManager: ConversationManager,
+        private apiManager: ApiServiceManager,
+        private contextManager: ContextManager,
+        private webview: vscode.Webview
+    ) {
+        this.interactionHandler = new InteractionHandler(conversationManager, apiManager, webview);
+    }
+
+    /**
+     * Kullanıcıdan gelen ana mesajı alır ve bağlama göre ilgili
+     * işleyiciye yönlendirir.
+     */
+    public async handleAskAi(userMessage: string) {
+        if (this.contextManager.uploadedFileContexts.length > 0) {
+            // Dosya etkileşimi
+            await this.interactionHandler.handle(userMessage, {
+                type: 'file',
+                files: this.contextManager.uploadedFileContexts
+            });
+        } else if (this.contextManager.activeContextText && this.contextManager.activeEditorUri && this.contextManager.activeSelection) {
+            // Seçili kod etkileşimi
+            await this.interactionHandler.handle(userMessage, {
+                type: 'selection',
+                code: this.contextManager.activeContextText,
+                uri: this.contextManager.activeEditorUri,
+                selection: this.contextManager.activeSelection
+            });
+            this.contextManager.clearAll(this.webview);
+        } else {
+            // Standart sohbet
+            await this.handleStandardChat(userMessage);
+        }
+    }
+
+    /**
+     * Standart, bağlamsız sohbet mesajlarını yönetir.
+     */
+    public async handleStandardChat(userMessage: string) {
         this.conversationManager.addMessage('user', userMessage);
 
         try {
@@ -36,148 +72,20 @@ export class MessageHandler {
             
             const aiResponse = await this.apiManager.generateChatContent(messagesForApi);
             this.conversationManager.addMessage('assistant', aiResponse);
-            webview.postMessage({ type: 'addResponse', payload: aiResponse });
+            this.webview.postMessage({ type: 'addResponse', payload: aiResponse });
 
         } catch (error: any) {
             console.error("Chat API Error:", error);
             this.conversationManager.removeLastMessage();
-            // GÜNCELLENDİ: Detaylı hata mesajını göster.
             const errorMessage = error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu.";
-            webview.postMessage({ type: 'addResponse', payload: `**Hata:** ${errorMessage}` });
-        }
-    }
-
-    public async handleFileContextInteraction(instruction: string, contexts: Array<{ uri: vscode.Uri; content: string; fileName: string; }>, webview: vscode.Webview) {
-        this.conversationManager.addMessage('user', instruction);
-        let analysisResponseRaw = '';
-
-        try {
-            const analysisPrompt = createFileInteractionAnalysisPrompt(contexts, instruction);
-            analysisResponseRaw = await this.apiManager.generateContent(analysisPrompt);
-
-            const cleanedJsonString = cleanLLMJsonBlock(analysisResponseRaw);
-            const analysisResult = JSON.parse(cleanedJsonString);
-
-            const { intent, fileName, explanation } = analysisResult;
-
-            if (!intent || !explanation) {
-                throw new Error('Modelden beklenen formatta JSON yanıtı alınamadı: "intent" veya "explanation" eksik.');
-            }
-
-            if (intent === 'answer') {
-                this.conversationManager.addMessage('assistant', explanation);
-                webview.postMessage({ type: 'addResponse', payload: explanation });
-                return;
-            }
-
-            if (intent === 'modify') {
-                const contextToModify = contexts.find(c => c.fileName === fileName);
-
-                if (!contextToModify) {
-                    const errorMsg = `**Hata:** Model, mevcut olmayan bir dosyayı (${fileName || 'belirtilmemiş'}) değiştirmeye çalıştı.`;
-                    this.conversationManager.addMessage('assistant', errorMsg);
-                    webview.postMessage({ type: 'addResponse', payload: errorMsg });
-                    return;
-                }
-
-                // ÖNCE KODU DEĞİŞTİR
-                const modificationPrompt = createModificationPrompt(instruction, contextToModify.content);
-                const modifiedCodeResponse = await this.apiManager.generateContent(modificationPrompt);
-                const cleanedCode = cleanLLMCodeBlock(modifiedCodeResponse);
-                
-                // ŞİMDİ AÇIKLAMAYI VE FARKI AYNI ANDA GÖNDER
-                this.conversationManager.addMessage('assistant', explanation);
-                webview.postMessage({ type: 'addResponse', payload: explanation });
-                
-                const diffData: DiffData = {
-                    originalCode: contextToModify.content,
-                    modifiedCode: cleanedCode,
-                    context: {
-                        type: 'file',
-                        fileUri: contextToModify.uri.toString()
-                    }
-                };
-                webview.postMessage({ type: 'showDiff', payload: diffData });
-            }
-
-        } catch (error: any) {
-            console.error("File Interaction API Error:", error);
-            this.conversationManager.removeLastMessage();
-
-            // GÜNCELLENDİ: Hata yönetimini basitleştir ve detaylı hata göster.
-            const errorMessage = error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu.";
-
-            if (errorMessage.includes('JSON') && analysisResponseRaw) {
-                console.log("JSON parsing failed. Falling back to direct answer.");
-                this.conversationManager.addMessage('assistant', analysisResponseRaw);
-                webview.postMessage({ type: 'addResponse', payload: analysisResponseRaw });
-            } else {
-                webview.postMessage({ type: 'addResponse', payload: `**Hata:** ${errorMessage}` });
-            }
-        }
-    }
-
-    public async handleContextualModification(instruction: string, codeToModify: string, uri: vscode.Uri, selection: vscode.Selection, webview: vscode.Webview) {
-        this.conversationManager.addMessage('user', instruction);
-        let analysisResponseRaw = '';
-        
-        try {
-            const analysisPrompt = createSelectionInteractionAnalysisPrompt(codeToModify, instruction);
-            analysisResponseRaw = await this.apiManager.generateContent(analysisPrompt);
-
-            const cleanedJsonString = cleanLLMJsonBlock(analysisResponseRaw);
-            const analysisResult = JSON.parse(cleanedJsonString);
-
-            const { intent, explanation } = analysisResult;
-
-            if (!intent || !explanation) {
-                throw new Error('Modelden beklenen formatta JSON yanıtı alınamadı: "intent" veya "explanation" eksik.');
-            }
-
-            if (intent === 'answer') {
-                this.conversationManager.addMessage('assistant', explanation);
-                webview.postMessage({ type: 'addResponse', payload: explanation });
-                return;
-            }
-            
-            if (intent === 'modify') {
-                // ÖNCE KODU DEĞİŞTİR
-                const modificationPrompt = createModificationPrompt(instruction, codeToModify);
-                const modifiedCodeResponse = await this.apiManager.generateContent(modificationPrompt);
-                const cleanedCode = cleanLLMCodeBlock(modifiedCodeResponse);
-
-                // ŞİMDİ AÇIKLAMAYI VE FARKI AYNI ANDA GÖNDER
-                this.conversationManager.addMessage('assistant', explanation);
-                webview.postMessage({ type: 'addResponse', payload: explanation });
-
-                const diffData: DiffData = {
-                    originalCode: codeToModify,
-                    modifiedCode: cleanedCode,
-                    context: {
-                        type: 'selection',
-                        selection: { uri: uri.toString(), range: [selection.start.line, selection.start.character, selection.end.line, selection.end.character] }
-                    }
-                };
-                webview.postMessage({ type: 'showDiff', payload: diffData });
-            }
-        } catch (error: any) {
-            console.error("Contextual Modification API Error:", error);
-            this.conversationManager.removeLastMessage();
-            
-            // GÜNCELLENDİ: Hata yönetimini basitleştir ve detaylı hata göster.
-            const errorMessage = error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu.";
-
-            if (errorMessage.includes('JSON') && analysisResponseRaw) {
-                console.log("JSON parsing failed. Falling back to direct answer.");
-                this.conversationManager.addMessage('assistant', analysisResponseRaw);
-                webview.postMessage({ type: 'addResponse', payload: analysisResponseRaw });
-            } else {
-                webview.postMessage({ type: 'addResponse', payload: `**Hata:** ${errorMessage}` });
-            }
+            this.webview.postMessage({ type: 'addResponse', payload: `**Hata:** ${errorMessage}` });
         }
     }
     
-    public async handleApproveChange(args: ApproveChangeArgs, webview: vscode.Webview) {
+    /**
+     * Kullanıcının önerilen bir değişikliği onaylamasını işler.
+     */
+    public async handleApproveChange(args: ApproveChangeArgs) {
         const { diff } = args;
         try {
             if (diff.context.type === 'file' && diff.context.fileUri) {
@@ -194,13 +102,12 @@ export class MessageHandler {
                 await vscode.workspace.applyEdit(edit);
                 vscode.window.showInformationMessage('Kodunuz başarıyla güncellendi!');
             }
-            webview.postMessage({ type: 'changeApproved' });
+            this.webview.postMessage({ type: 'changeApproved' });
         } catch (error) {
             console.error('Değişiklik uygulanırken hata oluştu:', error);
             const errorMessage = "Değişiklik uygulanırken bir hata oluştu. Lütfen tekrar deneyin.";
             vscode.window.showErrorMessage(errorMessage);
-            webview.postMessage({ type: 'addResponse', payload: errorMessage });
+            this.webview.postMessage({ type: 'addResponse', payload: errorMessage });
         }
     }
-
 }

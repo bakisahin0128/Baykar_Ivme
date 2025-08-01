@@ -3,7 +3,7 @@
    WebView ile eklenti arasındaki `postMessage` iletişimini yönetir.
    ========================================================================== */
 
-import { vscode } from './dom.js';
+import { vscode } from '../utils/dom.js';
 
 /**
  * VS Code eklentisine belirli bir türde mesaj ve veri gönderir.

@@ -1,10 +1,10 @@
 /* ==========================================================================
-   SETTINGS (AYARLAR) BİLEŞENİ
+   SETTINGS MODAL BİLEŞENİ
    Ayarlar modalının tüm işlevselliğini yönetir.
    ========================================================================== */
    
-import * as DOM from '../dom.js';
-import * as VsCode from '../vscode.js';
+import * as DOM from '../utils/dom.js';
+import * as VsCode from '../services/vscode.js';
 
 function closeModal() {
     DOM.settingsModal.classList.add('hidden');
@@ -15,7 +15,9 @@ function handleServiceChange() {
     DOM.geminiSettings.classList.toggle('hidden', DOM.serviceSelect.value !== 'Gemini');
 }
 
-export function initSettings() {
+// --- Public Fonksiyonlar ---
+
+export function init() {
     DOM.settingsButton.addEventListener('click', () => {
         VsCode.postMessage('requestConfig');
         DOM.settingsModal.classList.remove('hidden');
@@ -61,5 +63,5 @@ export function loadConfig(config) {
     DOM.geminiKeyInput.value = config.geminiApiKey;
     DOM.historyLimitInput.value = config.conversationHistoryLimit;
     DOM.serviceSelect.value = config.activeApiService;
-    handleServiceChange(); // Değişikliği yansıtmak için tetikle
+    handleServiceChange();
 }

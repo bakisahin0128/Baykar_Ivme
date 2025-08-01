@@ -1,6 +1,6 @@
 /* ==========================================================================
-   DOM ELEMENT REFERANSLARI
-   Tüm DOM sorguları burada toplanır ve diğer modüllere sağlanır.
+   DOM ELEMENT REFERANSLARI VE SABİTLER
+   Tüm DOM sorguları ve sabit metinler burada toplanır.
    ========================================================================== */
 
 export const vscode = acquireVsCodeApi();
@@ -18,7 +18,6 @@ export const settingsButton = document.getElementById('settings-button');
 export const sendButton = document.getElementById('send-button');
 export const attachFileButton = document.getElementById('attach-file-button');
 export const effectToggleSwitch = document.getElementById('effect-toggle-switch'); 
-
 
 // --- Geçmiş Paneli ---
 export const historyPanel = document.getElementById('history-panel');
@@ -40,16 +39,21 @@ export const settingsPanes = document.querySelectorAll('.settings-pane');
 
 // --- Fark (Diff) Görünümü Elementleri ---
 export const diffContainer = document.getElementById('diff-container');
-// GÜNCELLEME: İki ayrı blok referansı yerine tek bir birleşik blok referansı
 export const unifiedDiffCodeBlock = document.getElementById('unified-diff-code-block');
 export const approveChangeButton = document.getElementById('approve-change-button');
 export const rejectChangeButton = document.getElementById('reject-change-button');
 export const closeDiffButton = document.getElementById('close-diff-button');
 
 
-// --- İkon URI'ları ---
-export const AI_ICON_URI = chatContainer.dataset.aiIconUri;
-export const USER_ICON_URI = chatContainer.dataset.userIconUri;
+// --- İkon URI'ları (Güncellendi) ---
+export const AI_ICON_URI = document.body.dataset.aiIconUri;
+export const USER_ICON_URI = document.body.dataset.userIconUri;
 
-// --- YENİ: Karakter Sayacı ---
+// --- Karakter Sayacı ---
 export const characterCounter = document.getElementById('character-counter');
+
+// --- UI Metinleri (i18n) ---
+export const i18n = {
+    thinking: 'İvme düşünüyor...'
+    // ...diğer metinler buraya eklenebilir
+};

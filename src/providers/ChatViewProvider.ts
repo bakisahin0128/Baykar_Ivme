@@ -1,9 +1,9 @@
 /* ==========================================================================
-   DOSYA 6: src/providers/ChatViewProvider.ts
+   DOSYA: src/providers/ChatViewProvider.ts (REFAKTÖR EDİLMİŞ)
    
-   SORUMULULUK: Webview'i oluşturur, yöneticileri (manager) başlatır ve 
-   gelen mesajları ilgili yöneticiye yönlendirir.
-   GÜNCELLEME: Artık yeni dosya ekleme fonksiyonu çağrılıyor.
+   SORUMLULUK: Webview'i oluşturur, tüm yöneticileri (manager) ve
+   işleyicileri (handler) başlatır, gelen mesajları merkezi
+   WebviewMessageHandler'a yönlendirir ve HTML'i oluşturur.
    ========================================================================== */
 
 import * as vscode from 'vscode';
@@ -16,144 +16,55 @@ import { ConversationManager } from '../features/ConversationManager';
 import { MessageHandler } from '../features/MessageHandler';
 import { ContextManager } from '../features/ContextManager';
 import { SettingsManager } from '../features/SettingsManager';
+import { WebviewMessageHandler } from '../features/Handlers/WebviewMessage'; // YENİ
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = `${EXTENSION_ID}.chatView`;
     private _view?: vscode.WebviewView;
 
-    private readonly conversationManager: ConversationManager;
-    private readonly messageHandler: MessageHandler;
-    private readonly contextManager: ContextManager;
-    private readonly settingsManager: SettingsManager;
+    // Yöneticiler (Managers)
+    private conversationManager: ConversationManager;
+    private contextManager: ContextManager;
+    private settingsManager: SettingsManager;
+    
+    // İşleyiciler (Handlers)
+    private messageHandler?: MessageHandler; 
+    private webviewMessageHandler?: WebviewMessageHandler;
 
     constructor(
         private readonly _context: vscode.ExtensionContext,
         private readonly apiManager: ApiServiceManager
     ) {
         this.conversationManager = new ConversationManager(_context);
-        this.messageHandler = new MessageHandler(this.conversationManager, apiManager);
         this.contextManager = new ContextManager();
         this.settingsManager = new SettingsManager();
     }
-
-    private sendContextSizeToWebview() {
-        if (!this._view) return;
-
-        const conversationSize = this.conversationManager.getActiveConversationSize();
-        const filesSize = this.contextManager.getUploadedFilesSize();
-        
-        this._view.webview.postMessage({
-            type: 'updateContextSize',
-            payload: {
-                conversationSize,
-                filesSize
-            }
-        });
-    }
-
+    
     public resolveWebviewView(webviewView: vscode.WebviewView) {
         this._view = webviewView;
         webviewView.webview.options = {
             enableScripts: true,
             localResourceRoots: [vscode.Uri.joinPath(this._context.extensionUri, 'webview-ui')]
         };
+        
+        // İşleyicileri, webview nesnesi oluşturulduktan sonra başlatıyoruz.
+        this.messageHandler = new MessageHandler(this.conversationManager, this.apiManager, this.contextManager, webviewView.webview);
+        this.webviewMessageHandler = new WebviewMessageHandler(
+            this.messageHandler,
+            this.conversationManager,
+            this.contextManager,
+            this.settingsManager,
+            webviewView.webview
+        );
+
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
-        this.sendContextSizeToWebview();
+        // İlk açılışta bağlam boyutunu gönder
+        this.webviewMessageHandler.handleMessage({ type: 'requestContextSize' });
 
-        webviewView.webview.onDidReceiveMessage(async data => {
-            if (!this._view) return;
-
-            switch (data.type) {
-                case 'requestContextSize': {
-                    this.sendContextSizeToWebview();
-                    break;
-                }
-
-                case 'askAI': {
-                    const userMessage = data.payload;
-                    if (this.contextManager.uploadedFileContexts.length > 0) {
-                        await this.messageHandler.handleFileContextInteraction(userMessage, this.contextManager.uploadedFileContexts, this._view.webview);
-                    } else if (this.contextManager.activeContextText && this.contextManager.activeEditorUri && this.contextManager.activeSelection) {
-                        await this.messageHandler.handleContextualModification(userMessage, this.contextManager.activeContextText, this.contextManager.activeEditorUri, this.contextManager.activeSelection, this._view.webview);
-                        this.contextManager.clearAll(this._view.webview);
-                    } else {
-                        await this.messageHandler.handleStandardChat(userMessage, this._view.webview);
-                    }
-                    this.sendContextSizeToWebview();
-                    break;
-                }
-                
-                case 'approveChange': {
-                    await this.messageHandler.handleApproveChange(data.payload, this._view.webview);
-                    this.sendContextSizeToWebview();
-                    break;
-                }
-
-                case 'newChat': {
-                    const activeConv = this.conversationManager.getActive();
-                    if (activeConv && activeConv.messages.length <= 1 && this.contextManager.uploadedFileContexts.length === 0) break; 
-                    
-                    this.contextManager.clearAll(this._view.webview);
-
-                    this.conversationManager.createNew();
-                    this._view.webview.postMessage({ type: 'clearChat' });
-                    this.sendContextSizeToWebview();
-                    break;
-                }
-
-                case 'requestHistory': {
-                    const historySummary = this.conversationManager.getHistorySummary();
-                    this._view.webview.postMessage({ type: 'loadHistory', payload: historySummary });
-                    break;
-                }
-
-                case 'switchChat': {
-                    const conversation = this.conversationManager.switchConversation(data.payload.conversationId);
-                    if (conversation) {
-                        this._view.webview.postMessage({ type: 'loadConversation', payload: conversation.messages });
-                    }
-                    this.sendContextSizeToWebview();
-                    break;
-                }
-
-                case 'deleteChat': {
-                    const nextConversation = this.conversationManager.deleteConversation(data.payload.conversationId);
-                    if (nextConversation) {
-                        this._view.webview.postMessage({ type: 'loadConversation', payload: nextConversation.messages });
-                    } else {
-                        this._view.webview.postMessage({ type: 'clearChat' });
-                    }
-                    const historySummary = this.conversationManager.getHistorySummary();
-                    this._view.webview.postMessage({ type: 'loadHistory', payload: historySummary });
-                    this.sendContextSizeToWebview();
-                    break;
-                }
-                
-                // GÜNCELLENDİ: Artık yeni fonksiyonu çağırıyor.
-                case 'requestFileUpload': 
-                    await this.contextManager.addFilesToContext(this._view.webview); 
-                    this.sendContextSizeToWebview();
-                    break;
-                
-                case 'removeFileContext': 
-                    this.contextManager.removeFileContext(data.payload.fileName, this._view.webview);
-                    this.sendContextSizeToWebview();
-                    break;
-                
-                case 'clearFileContext':
-                    this.contextManager.clearAll(this._view.webview);
-                    this.sendContextSizeToWebview();
-                    break;
-                
-                case 'requestConfig': 
-                    this.settingsManager.sendConfigToWebview(this._view.webview); 
-                    break;
-                
-                case 'saveSettings': 
-                    await this.settingsManager.saveSettings(data.payload); 
-                    break;
-            }
+        // Gelen tüm mesajları merkezi işleyiciye yönlendir
+        webviewView.webview.onDidReceiveMessage(async (data) => {
+            await this.webviewMessageHandler?.handleMessage(data);
         });
 
         webviewView.onDidChangeVisibility(() => {
@@ -162,7 +73,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 if (activeConv) {
                     this._view?.webview.postMessage({ type: 'loadConversation', payload: activeConv.messages });
                 }
-                this.sendContextSizeToWebview();
+                this.webviewMessageHandler?.handleMessage({ type: 'requestContextSize' });
             }
         });
     }
@@ -183,7 +94,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             .replace(/{{cspSource}}/g, webview.cspSource)
             .replace(/{{nonce}}/g, nonce)
             .replace(/{{chat_css_uri}}/g, toUri('css/chat.css').toString())
-            .replace(/{{chat_js_uri}}/g, toUri('js/app.js').toString())
+            // YENİ YOL: Artık core/app.js'i işaret ediyor.
+            .replace(/{{chat_js_uri}}/g, toUri('js/core/app.js').toString()) 
             .replace(/{{ai_icon_uri}}/g, toUri('assets/baykar-icon.svg').toString())
             .replace(/{{user_icon_uri}}/g, toUri('assets/BaykarLogo.svg').toString())
             .replace(/{{logo_uri}}/g, toUri('assets/BaykarLogo.svg').toString())
